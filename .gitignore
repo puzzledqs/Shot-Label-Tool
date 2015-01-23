@@ -3,4 +3,8 @@ label_tool/GeneratedFiles/
 label_tool/Release/
 Release/
 test_videos/
+Win32/
+ipch/
+*sdf
+测试视频/
 

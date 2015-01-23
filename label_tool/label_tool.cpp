@@ -1,9 +1,12 @@
 #include "label_tool.h"
+#include <algorithm>
 
 const int label_tool::BBOX_AREA_CHANGE_STEP = 5;
 const int label_tool::BBOX_LOC_CHANGE_STEP = 5;
 const int label_tool::bk_label_num = 3;
 const int label_tool::attr_label_num = 10;
+const int label_tool::MAX_HEIGHT = 700;
+const int label_tool::MAX_WIDTH = 900;
 const Qt::GlobalColor ClipInfo::Colors[] = {Qt::green, Qt::red, Qt::white};
 
 
@@ -11,7 +14,7 @@ label_tool::label_tool(QWidget *parent)
 	: QMainWindow(parent)
 {
 	ui.setupUi(this);
-    this->move(200, 200);
+    this->move(0, 0);
 
     /*QSizePolicy sizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     sizePolicy.setHorizontalStretch(0);
@@ -68,8 +71,8 @@ label_tool::label_tool(QWidget *parent)
 
     //-----------------------------------------  image display
 	image_label = new myQLabel(centralWidget);
-    //image_label->setFixedSize(QSize(300, 200));
-	image_label->setMouseTracking(true);
+    image_label->setFixedSize(QSize(MAX_WIDTH, MAX_HEIGHT));
+	image_label->setAlignment(Qt::AlignCenter);
     speed_slider_label = new QLabel(QString::fromLocal8Bit("播放速度:"), centralWidget);
     speed_slider = new QSlider(Qt::Vertical, centralWidget);
     dummy_space_label = new QLabel(" ");
@@ -234,9 +237,10 @@ label_tool::label_tool(QWidget *parent)
 	channels[0] = 0;
 	channels[1] = 1;
 
-    //init();
     batchSetButtonStatus1(false);
     batchSetButtonStatus2(false);
+    
+    //init();
 }
 
 label_tool::~label_tool()
@@ -273,7 +277,7 @@ void label_tool::draw_bbox()
 			QImage::Format_RGB888);
 	}
 	image_label->setPixmap(QPixmap::fromImage(qimg));
-	image_label->resize(image_label->pixmap()->size());
+	//image_label->resize(image_label->pixmap()->size());
 	this->update();
 }
 
@@ -282,19 +286,26 @@ void label_tool::getSubFolderVideos(QString path, vector<string>& videolist) {
     if(!dir.exists())  return;
 
     QStringList filters;
-    filters << QString("*.mp4") 
+    filters << QString("*.ifox")
+            << QString("*.vob") << QString("*.VOB")
+            << QString("*.mpeg") << QString("*.MPEG")
+            << QString("*.webm") << QString("*.WEBM")
+            << QString("*.rm") << QString("*.RM")
+            << QString("*.rmvb") << QString("*.RMVB")
+            << QString("*.mp4") << QString("*.MP4")
             << QString("*.avi") << QString("*.AVI") 
             << QString("*.flv") << QString("*.FLV") 
             << QString("*.wmv") << QString("*.WMV") 
             << QString("*.3gp") << QString("*.3GP")
             << QString("*.mpg") << QString("*.MPG")
-            << QString("*.mov") << QString("*.MOV");
+            << QString("*.mov") << QString("*.MOV")
+            ;
     QDirIterator dir_iterator(path, filters, QDir::Files | QDir::NoSymLinks, QDirIterator::Subdirectories);
     while (dir_iterator.hasNext()) {
         dir_iterator.next();
         QFileInfo fi = dir_iterator.fileInfo();
         QString abs_path = fi.absoluteFilePath();
-        videolist.push_back(abs_path.toStdString());
+        videolist.push_back(string(abs_path.toLocal8Bit().data())); // use local codec
     }
 }
 
@@ -374,7 +385,8 @@ void label_tool::openButtonClicked() {
 	videolist.clear();
 	QMessageBox::StandardButton rb_open = QMessageBox::Yes;
 	if(rb_open == QMessageBox::Yes) { 
-		QString foldername = QFileDialog::getExistingDirectory(this,"Open folder", "../");
+		//QString foldername = QFileDialog::getExistingDirectory(this,"Open folder", "J:/bk_data/1_bk_video");
+        QString foldername = QFileDialog::getExistingDirectory(this,"Open folder", "../../");
 		folder_name_lineEdit->setText(foldername);
 		if (foldername != "") {
 			//获取该路径下的所有文件
@@ -394,6 +406,8 @@ void label_tool::openButtonClicked() {
 void label_tool::goToVideo(int n) {
     if (n < 0 || n >= videolist.size()) return;
 
+    batchSetButtonStatus1(true);
+
     video_count_now = n;
     string fileName = videolist[video_count_now];
     int pos = fileName.rfind('/') + 1;
@@ -403,7 +417,8 @@ void label_tool::goToVideo(int n) {
 
 	capture.release();
 	capture.open(fileName);
-    isError = false;	
+    isError = false;
+    isLarge = false;
 
 	if(!capture.isOpened())
 	{
@@ -420,28 +435,29 @@ void label_tool::goToVideo(int n) {
 	frame_width = capture.get(CV_CAP_PROP_FRAME_WIDTH);
 	frame_height = capture.get(CV_CAP_PROP_FRAME_HEIGHT);
 	rate = capture.get(CV_CAP_PROP_FPS);
-	frame_count_now = -1;
 
-	if (true || frame_width <= 800 && frame_height <= 450) {
-		image_label->setGeometry(QRect(20+(800-frame_width)/2,50+(450-frame_height)/2,frame_width,frame_height));
+	if (true || frame_width <= MAX_WIDTH && frame_height <= MAX_HEIGHT) {
+		//image_label->setGeometry(QRect((MAX_WIDTH - frame_width)/2, (MAX_HEIGHT - frame_height)/2, frame_width, frame_height));
 	}
 	else {
 		QMessageBox::warning(this,"warning","The size of the video is too large!");
+        isLarge = true;
 		return;
 	}
 
 	//设置滚动条的值
+    slider_lineEdit->setText("0");
 	slider->setMaximum(frame_count - 1);
 	slider_label->setText("/" + QString::number(frame_count - 1) );
+    frame_count_now = -1;
     updateImage();
     // ------------------ init for the current video
-    batchSetButtonStatus1(true);
+    load();
+    initClipList();
     batchSetButtonStatus2(true);
     isPlay = false;
     bk_buttons[1]->setChecked(true);
     attr_buttons[0]->setChecked(true);
-    load();
-    initClipList();
 }
 
 void label_tool::nextButtonClicked() {
@@ -459,9 +475,21 @@ void label_tool::gotoButtonClicked() {
     goToVideo(num);
 }
 
+string label_tool::replaceAll(string str, const string& from, const string& to) {
+    int start_pos = 0;
+    while ((start_pos = str.find(from, start_pos)) != string::npos) {
+        str.replace(start_pos, from.length(), to);
+        start_pos += to.length();
+    }
+    return str;
+}
 string label_tool::getResultFileName() {
-    //输出结果txt，命名为：原视频名+_result
-    return videolist[video_count_now] + "_result.txt";
+    string outDir = "./labels/";
+    string inputDir = string(folder_name_lineEdit->text().toLocal8Bit().data());
+    string rel_path = videolist[video_count_now].substr(inputDir.length() + 1); // skip the leading '/'
+    string res  = replaceAll(rel_path, "/", "__") + "_result.txt";
+    return outDir + res;
+    //return videolist[video_count_now] + "_result.txt";
 }
 
 void label_tool::save() {
@@ -471,6 +499,8 @@ void label_tool::save() {
     //-------header
     if (isError)
 	    fout_result << "!!Error Occurred!! ## video clip labeling result v1.0 ##" << endl;
+    else if (isLarge)
+        fout_result << "!!Image too Large!! ## video clip labeling result v1.0 ##" << endl;
     else
         fout_result << "## video clip labeling result v1.0 ##" << endl;
 	fout_result << frame_count  <<" " << frame_width << " " << frame_height << endl;
@@ -490,7 +520,7 @@ void label_tool::save() {
 void label_tool::load() {
     infos.clear();
     string result_filename = getResultFileName();
-    QFile fi(result_filename.c_str());
+    QFile fi(QString::fromLocal8Bit(result_filename.c_str()));
     if (fi.exists()) {
         ifstream fin(result_filename);
         string str;

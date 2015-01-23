@@ -3,11 +3,10 @@
 
 #include <QtWidgets/QMainWindow>
 #include "ui_label_tool.h"
-#include <vector>
+#include "myQLabel.h"
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
-#include "myQLabel.h"
 
 #include <QLabel>
 #include <QPushButton>
@@ -99,6 +98,8 @@ private:
 
 	static const int BBOX_AREA_CHANGE_STEP;
 	static const int BBOX_LOC_CHANGE_STEP;
+    static const int MAX_WIDTH;
+    static const int MAX_HEIGHT;
 
 	Ui::label_toolClass ui;
 
@@ -140,6 +141,7 @@ private:
 	int speed;//播放速度
     bool isPlay;
     bool isError;
+    bool isLarge;
 
     QLabel *folder_name_label;
     QPushButton *open_button;//打开按钮
@@ -205,7 +207,8 @@ protected:
     void setLabelForClip(ClipInfo& ci);
     void save();
     void load();
-    string label_tool::getResultFileName();
+    string getResultFileName();
+    string replaceAll(string std, const string& from, const string& to);
 
 private slots:
 	//图片鼠标响应
